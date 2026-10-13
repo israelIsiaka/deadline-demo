@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assignment</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 560px; margin: 48px auto; padding: 0 16px; color: #1d1d1f; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 20px 24px; }
+    .label { color: #666; font-size: 14px; margin: 16px 0 4px; }
+    #deadline { font-size: 20px; font-weight: 600; margin: 0; }
+    button { margin-top: 16px; padding: 8px 18px; font-size: 15px; cursor: pointer; }
+    #receipt { margin-top: 16px; padding: 10px 14px; border-radius: 8px; background: #eef7ee; }
+    #receipt.bad { background: #fbeaea; }
+    #localzone { color: #666; font-size: 13px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 id="title">Assignment</h1>
+
+    <p class="label">Deadline (your local time)</p>
+    <p id="deadline" data-testid="deadline" hidden></p>
+    <p id="localzone"></p>
+
+    <p class="label">Your file</p>
+    <input id="file" data-testid="file-input" type="file">
+    <br>
+    <button id="submit" data-testid="submit">Submit</button>
+
+    <p id="receipt" data-testid="receipt-status" hidden></p>
+  </div>
+
+<script>
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const id = location.pathname.split("/").filter(Boolean).pop();
+
+  // Formats a UTC instant in the BROWSER's timezone: "Fri 23 Oct 2026, 17:00 BST"
+  function formatDeadline(isoUtc) {
+    const parts = {};
+    new Intl.DateTimeFormat("en-GB", {
+      weekday: "short", day: "numeric", month: "numeric", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short"
+    }).formatToParts(new Date(isoUtc)).forEach(p => parts[p.type] = p.value);
+    return `${parts.weekday} ${parts.day} ${MONTHS[parts.month - 1]} ${parts.year}, ` +
+           `${parts.hour}:${parts.minute} ${parts.timeZoneName}`;
+  }
+
+  async function load() {
+    const res = await fetch(`/assignments/${id}/details`);
+    if (!res.ok) { document.getElementById("title").textContent = "Assignment not found"; return; }
+    const a = await res.json();
+    document.getElementById("title").textContent = a.title || "Assignment";
+    const el = document.getElementById("deadline");
+    el.textContent = formatDeadline(a.deadline);
+    el.hidden = false; // only visible once the correct text is in place
+    document.getElementById("localzone").textContent =
+      "Your timezone: " + Intl.DateTimeFormat().resolvedOptions().timeZone;
+  }
+
+  function showReceipt(text, ok) {
+    const r = document.getElementById("receipt");
+    r.textContent = text;
+    r.className = ok ? "" : "bad";
+    r.hidden = false;
+  }
+
+  document.getElementById("submit").addEventListener("click", async () => {
+    const file = document.getElementById("file").files[0];
+    if (!file) { showReceipt("Choose a file first", false); return; }
+    document.getElementById("submit").disabled = true;
+
+    // 1) Record the moment the student clicked Submit (server time)
+    const start = await fetch(`/assignments/${id}/submissions/start`, { method: "POST" });
+    if (!start.ok) { showReceipt("Rejected: deadline passed", false); return; }
+    const { ticket } = await start.json();
+
+    // 2) Upload the file (may be slow)
+    const form = new FormData();
+    form.append("ticket", ticket);
+    form.append("file", file);
+    const up = await fetch(`/assignments/${id}/submissions/upload`, { method: "POST", body: form });
+    if (!up.ok) {
+      const err = await up.json().catch(() => ({}));
+      showReceipt(err.error === "DEADLINE_PASSED" ? "Rejected: deadline passed" : "Upload failed", false);
+      return;
+    }
+    const result = await up.json();
+    showReceipt(result.status, true);
+  });
+
+  load();
+</script>
+</body>
+</html>
