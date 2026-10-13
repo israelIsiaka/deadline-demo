@@ -14,6 +14,8 @@ public final class Config {
     public static final String STUDENT_TOKEN = get("studentToken", "STUDENT_TOKEN", "student-demo-token");
     public static final String INSTRUCTOR_TOKEN = get("instructorToken", "INSTRUCTOR_TOKEN", "instructor-demo-token");
     public static final boolean HEADLESS = Boolean.parseBoolean(get("headless", "HEADLESS", "true"));
+    // Pause after each page step so a human can watch. Only when Chrome is visible; -DpauseMs=0 turns it off.
+    public static final long PAUSE_MS = HEADLESS ? 0 : Long.parseLong(get("pauseMs", "PAUSE_MS", "3000"));
 
     private static String get(String prop, String env, String fallback) {
         String value = System.getProperty(prop);

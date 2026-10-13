@@ -100,10 +100,15 @@ public class AssignmentController {
     /** Called when the student clicks Submit: records the server time. */
     @PostMapping("/assignments/{id}/submissions/start")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> start(@PathVariable String id) {
+    public ResponseEntity<Map<String, Object>> start(@RequestHeader(value = "Authorization", required = false) String auth,
+                                                     @PathVariable String id) {
+        if (!isBearer(auth, studentToken)) return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED");
         Assignment a = assignments.get(id);
         if (a == null) return error(HttpStatus.NOT_FOUND, "NOT_FOUND");
         Instant startedAt = clock.now();
+        // Drop tickets whose upload window has passed (student clicked Submit, never uploaded).
+        // ponytail: O(n) scan per click, fine for a demo; use a scheduled cleanup or a TTL cache if tickets pile up.
+        tickets.values().removeIf(t -> Duration.between(t.startedAt(), startedAt).compareTo(UPLOAD_WINDOW) > 0);
         if (decide(a, startedAt) == Verdict.REJECTED) return error(HttpStatus.FORBIDDEN, "DEADLINE_PASSED");
 
         String ticket = UUID.randomUUID().toString();
@@ -114,9 +119,11 @@ public class AssignmentController {
     /** The (possibly slow) file upload. Lateness is judged by the ticket's start time. */
     @PostMapping("/assignments/{id}/submissions/upload")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> upload(@PathVariable String id,
+    public ResponseEntity<Map<String, Object>> upload(@RequestHeader(value = "Authorization", required = false) String auth,
+                                                      @PathVariable String id,
                                                       @RequestParam("ticket") String ticketId,
                                                       @RequestParam("file") MultipartFile file) {
+        if (!isBearer(auth, studentToken)) return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED");
         Assignment a = assignments.get(id);
         Ticket ticket = tickets.remove(ticketId);
         if (a == null || ticket == null || !ticket.assignmentId().equals(id)) {

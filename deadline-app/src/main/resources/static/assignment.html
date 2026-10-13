@@ -34,6 +34,8 @@
 <script>
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const id = location.pathname.split("/").filter(Boolean).pop();
+  // ponytail: demo stand-in for a real login. The student token comes from ?token=... in the URL.
+  const auth = { Authorization: "Bearer " + (new URLSearchParams(location.search).get("token") || "") };
 
   // Formats a UTC instant in the BROWSER's timezone: "Fri 23 Oct 2026, 17:00 BST"
   function formatDeadline(isoUtc) {
@@ -71,15 +73,18 @@
     document.getElementById("submit").disabled = true;
 
     // 1) Record the moment the student clicked Submit (server time)
-    const start = await fetch(`/assignments/${id}/submissions/start`, { method: "POST" });
-    if (!start.ok) { showReceipt("Rejected: deadline passed", false); return; }
+    const start = await fetch(`/assignments/${id}/submissions/start`, { method: "POST", headers: auth });
+    if (!start.ok) {
+      showReceipt(start.status === 401 ? "Not signed in (add ?token=... to the URL)" : "Rejected: deadline passed", false);
+      return;
+    }
     const { ticket } = await start.json();
 
     // 2) Upload the file (may be slow)
     const form = new FormData();
     form.append("ticket", ticket);
     form.append("file", file);
-    const up = await fetch(`/assignments/${id}/submissions/upload`, { method: "POST", body: form });
+    const up = await fetch(`/assignments/${id}/submissions/upload`, { method: "POST", headers: auth, body: form });
     if (!up.ok) {
       const err = await up.json().catch(() => ({}));
       showReceipt(err.error === "DEADLINE_PASSED" ? "Rejected: deadline passed" : "Upload failed", false);

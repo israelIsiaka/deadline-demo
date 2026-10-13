@@ -28,8 +28,9 @@ public class AssignmentPage {
     }
 
     public AssignmentPage open(String assignmentId) {
-        driver.get(Config.WEB_URL + "/assignments/" + assignmentId);
+        driver.get(Config.WEB_URL + "/assignments/" + assignmentId + "?token=" + Config.STUDENT_TOKEN);
         wait.until(ExpectedConditions.visibilityOfElementLocated(DEADLINE_TEXT));
+        pauseForViewer();
         return this;
     }
 
@@ -44,8 +45,20 @@ public class AssignmentPage {
 
     /** Waits for the receipt after a (possibly slow) upload finishes. */
     public String waitForReceiptStatus(Duration timeout) {
-        return new WebDriverWait(driver, timeout)
+        String status = new WebDriverWait(driver, timeout)
                 .until(ExpectedConditions.visibilityOfElementLocated(RECEIPT_STATUS))
                 .getText();
+        pauseForViewer();
+        return status;
+    }
+
+    /** Keeps the page on screen for a moment when running with -Dheadless=false. */
+    private static void pauseForViewer() {
+        if (Config.PAUSE_MS <= 0) return;
+        try {
+            Thread.sleep(Config.PAUSE_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

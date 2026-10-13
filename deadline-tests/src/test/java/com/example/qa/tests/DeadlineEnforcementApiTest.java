@@ -1,9 +1,11 @@
 package com.example.qa.tests;
 
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
 import com.example.qa.support.AssignmentApi;
+import com.example.qa.support.Config;
 import com.example.qa.support.TestClock;
 import java.time.Instant;
 import java.util.Map;
@@ -84,5 +86,22 @@ public class DeadlineEnforcementApiTest {
                 .then()
                 .statusCode(oneOf(403, 422))
                 .body("error", equalTo("DEADLINE_PASSED"));
+    }
+
+    // ---------- Auth: the upload flow needs a student token too ----------
+
+    @Test(groups = "regression")
+    public void uploadFlowRejectsRequestsWithoutStudentToken() {
+        String id = AssignmentApi.createAssignment(DEADLINE, false);
+
+        given().baseUri(Config.API_URL)
+                .when().post("/assignments/" + id + "/submissions/start")
+                .then().statusCode(401);
+
+        given().baseUri(Config.API_URL)
+                .multiPart("ticket", "any-ticket")
+                .multiPart("file", "essay.txt", "My essay".getBytes())
+                .when().post("/assignments/" + id + "/submissions/upload")
+                .then().statusCode(401);
     }
 }

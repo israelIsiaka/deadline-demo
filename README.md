@@ -15,8 +15,10 @@ You need Java 21+ (the JRE 25 you already have is fine), Maven (`brew install ma
 cd deadline-demo/deadline-app
 ```
 ```
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=staging
 ```
+The `staging` profile switches on the test clock endpoint the tests need. Plain `mvn spring-boot:run` starts the app without it (production-like), and the tests that move the clock will fail.
+
 Leave it running. It's ready when you see `Started DeadlineApplication`.
 
 **Terminal 2: run the tests**
@@ -30,7 +32,13 @@ To watch Chrome open and switch through the timezones:
 ```
 mvn test -Dheadless=false
 ```
-Expected result: `Tests run: 15, Failures: 0`.
+With Chrome visible, each page stays on screen for 3 seconds so you can watch. Change it with `-DpauseMs=5000`, or turn it off with `-DpauseMs=0`.
+
+Expected result: `Tests run: 16, Failures: 0`.
+
+The HTML report is at `deadline-tests/target/surefire-reports/emailable-report.html` (`open` it on a Mac).
+
+The tests also run on GitHub Actions on every push (`.github/workflows/tests.yml`); the report is attached to each run as the `test-report` artifact.
 
 In IntelliJ you can also click the green ▶ next to any test class or method, as long as the app in Terminal 1 is running.
 
@@ -40,7 +48,7 @@ Create an assignment due Friday 23 Oct 2026, 17:00 London time:
 ```
 curl -s -X POST localhost:8081/assignments -H "Authorization: Bearer instructor-demo-token" -H "Content-Type: application/json" -d '{"title":"Essay 1","deadline":"2026-10-23T16:00:00Z","allowLateSubmissions":false}'
 ```
-Copy the `id` from the reply and open `http://localhost:8081/assignments/<id>` in Chrome. The deadline shows in your Mac's timezone.
+Copy the `id` from the reply and open `http://localhost:8081/assignments/<id>?token=student-demo-token` in Chrome (the token stands in for a real student login; without it, Submit says you're not signed in). The deadline shows in your Mac's timezone.
 
 To see it from another timezone: open DevTools (Cmd+Opt+I), press Cmd+Shift+P, type **Show Sensors**, and set a location such as Tokyo. Then reload the page.
 
@@ -61,9 +69,9 @@ curl -s -X DELETE localhost:8081/test-support/clock
 | GET | `/assignments/{id}` | anyone | Student page (deadline shown in the browser's local time) |
 | GET | `/assignments/{id}/details` | anyone | Assignment JSON (deadline in UTC) |
 | POST | `/assignments/{id}/submissions` | student token | Submit text → `201 {late}` or `403 {error: DEADLINE_PASSED}` |
-| POST | `/assignments/{id}/submissions/start` | page | Student clicks Submit: records server time, returns a ticket |
-| POST | `/assignments/{id}/submissions/upload` | page | File upload. Judged by the ticket's start time (10-minute window) |
-| POST / DELETE | `/test-support/clock` | tests | Set, freeze or reset the server clock. **Staging only** (`testsupport.enabled`) |
+| POST | `/assignments/{id}/submissions/start` | student token | Student clicks Submit: records server time, returns a ticket |
+| POST | `/assignments/{id}/submissions/upload` | student token | File upload. Judged by the ticket's start time (10-minute window) |
+| POST / DELETE | `/test-support/clock` | tests | Set, freeze or reset the server clock. **Staging only**: exists only with the `staging` profile |
 
 Demo tokens: `instructor-demo-token`, `student-demo-token`.
 
